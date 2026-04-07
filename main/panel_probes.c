@@ -1,11 +1,9 @@
 /* Version: 0.9 (Pre-Release) | JBG Discovery Framework */
 #include "panel_hw.h"
 #include "panel_hw_link.h"
-#include "spi_presets.h"
 #include "ui_colors.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
-#include "esp_lcd_panel_io.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,7 +20,7 @@ static const char *TAG = "panel_probes";
 
 /*
  * Searchlight marker: 40×40 white tile at origin with a 3px-stroke “F” (black).
- * RAW: panel_hw_draw_rect_raw — silicon GRAM (0,0); logical: session gap / orient / inv.
+ * panel_hw_draw_rect_raw: fill only — respects current gap / orientation / invert (no identity hijack).
  */
 #define PROBE_MARKER_BOX 40
 #define PROBE_F_STROKE 3
@@ -30,8 +28,14 @@ static const char *TAG = "panel_probes";
 
 static esp_err_t probes_draw_marker_f_stroke3_raw(const test_session_t *s, uint16_t fg, int x_off, int y_off)
 {
-    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 6, y_off + 35, fg), TAG, "f stem");
-    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 35, y_off + 6, fg), TAG, "f top");
+    esp_err_t e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 6, y_off + 35, fg);
+    if (e != ESP_OK) {
+        return e;
+    }
+    e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 35, y_off + 6, fg);
+    if (e != ESP_OK) {
+        return e;
+    }
     return panel_hw_draw_rect_raw(s, x_off + 4, y_off + 17, x_off + 22, y_off + 19, fg);
 }
 
@@ -79,35 +83,13 @@ esp_err_t panel_hw_spi_paint_discovery_gram_rgb565(const test_session_t *s, uint
     return spi_paint_discovery_gram_rgb565(s, rgb565);
 }
 
-esp_err_t panel_hw_draw_rect_raw(const test_session_t *s, int x0, int y0, int x1_inclusive, int y1_inclusive,
-                                 uint16_t rgb565)
-{
-    ESP_RETURN_ON_FALSE(s && panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
-    if (x1_inclusive < x0 || y1_inclusive < y0) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    esp_lcd_panel_handle_t panel = panel_hw_link_get_panel();
-    (void)panel_hw_set_gap(0, 0);
-    (void)esp_lcd_panel_swap_xy(panel, false);
-    panel_hw_set_mirror(false, false);
-
-    uint16_t mw_u = 0, mh_u = 0;
-    spi_presets_chip_gram_max(panel_hw_link_get_spi_chip(), &mw_u, &mh_u);
-    int mw = (int)mw_u;
-    int mh = (int)mh_u;
-    if (mw <= 0 || mh <= 0) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    int w = x1_inclusive - x0 + 1;
-    int h = y1_inclusive - y0 + 1;
-    return panel_hw_link_spi_fill_rect_bounds(x0, y0, w, h, rgb565, mw, mh);
-}
-
 esp_err_t panel_hw_draw_silicon_probe(const test_session_t *s)
 {
     ESP_RETURN_ON_FALSE(s && panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
+
+    /* Session orientation/invert before raw GRAM paint (no MADCTL 0x00 identity hijack — that helper is removed). */
+    panel_hw_apply_orientation(s);
+    panel_hw_apply_invert(s);
 
     ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, 0, 0, SAFE_SQUARE_DIM - 1, SAFE_SQUARE_DIM - 1, 0x0000u), TAG,
                         "safe square");

@@ -1269,35 +1269,17 @@ static esp_err_t spi_paint_controller_gram_max_rgb565(const test_session_t *s, u
 }
 
 /*
- * Native preset-max GRAM fill (identity axes); gap/orient not restored here.
- * panel_hw (orientation probe) and panel_probes (discovery) use this path.
+ * Full logical viewport fill under current session orientation/invert (SPI: s_w×s_h).
+ * Re-asserts session orientation and inversion before painting; callers often re-apply gap/orient/invert after.
  */
 esp_err_t panel_hw_native_clear_gram_preset_max_rgb565(const test_session_t *s, uint16_t rgb565)
 {
     if (!s) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!s_panel || s_kind != PHW_SPI || s_bpp != 16) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    /* Re-assert session transform before identity preset-max wipe (caller may restore again after). */
     panel_hw_apply_orientation(s);
     panel_hw_apply_invert(s);
-
-    uint16_t mw_u = 0, mh_u = 0;
-    spi_presets_chip_gram_max(s_spi_chip, &mw_u, &mh_u);
-    int mw = (int)mw_u;
-    int mh = (int)mh_u;
-    if (mw <= 0 || mh <= 0) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    (void)panel_hw_set_gap(0, 0);
-    (void)esp_lcd_panel_swap_xy(s_panel, false);
-    panel_hw_set_mirror(false, false);
-
-    return spi_fill_rect_rgb565_bounds(0, 0, mw, mh, rgb565, mw, mh);
+    return panel_hw_fill_rgb565(rgb565);
 }
 
 void panel_hw_spi_wipe_controller_gram_rgb565(const test_session_t *s, uint16_t rgb565)
@@ -1533,6 +1515,23 @@ session_spi_chip_t panel_hw_link_get_spi_chip(void)
 bool panel_hw_link_spi16_active(void)
 {
     return s_panel != NULL && s_kind == PHW_SPI && s_bpp == 16;
+}
+
+/*
+ * RGB565 fill in the current driver window (gap / swap_xy / mirror / invert unchanged).
+ * Does not reset MADCTL or gap — unlike older “raw GRAM” paths that forced identity.
+ */
+esp_err_t panel_hw_draw_rect_raw(const test_session_t *s, int x0, int y0, int x1_inclusive, int y1_inclusive,
+                                 uint16_t rgb565)
+{
+    ESP_RETURN_ON_FALSE(s, ESP_ERR_INVALID_ARG, TAG, "session");
+    ESP_RETURN_ON_FALSE(panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
+    if (x1_inclusive < x0 || y1_inclusive < y0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const int w = x1_inclusive - x0 + 1;
+    const int h = y1_inclusive - y0 + 1;
+    return spi_fill_rect_rgb565(x0, y0, w, h, rgb565);
 }
 
 esp_err_t panel_hw_link_spi_hline_rgb565(int x, int y, int len, uint16_t c)

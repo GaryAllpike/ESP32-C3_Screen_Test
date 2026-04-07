@@ -48,6 +48,7 @@ esp_err_t panel_hw_draw_silicon_probe(const test_session_t *s);
 /* 100×100 + F marker at logical (0,0) under session transform. */
 esp_err_t panel_hw_draw_marker_probe_rgb565(const test_session_t *s);
 esp_err_t panel_hw_draw_stage3_extent_probe_rgb565(const test_session_t *s);
+/* SPI RGB565: inclusive rect fill under current gap/orient/mirror/invert (does not reset MADCTL). */
 esp_err_t panel_hw_draw_rect_raw(const test_session_t *s, int x0, int y0, int x1_inclusive, int y1_inclusive,
                                  uint16_t rgb565);
 esp_err_t panel_hw_draw_g5_alignment_pattern(const test_session_t *s);
