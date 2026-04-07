@@ -29,33 +29,37 @@ static const char *TAG = "panel_probes";
 #define PROBE_F_STROKE 3
 #define SAFE_SQUARE_DIM 128
 
-static esp_err_t probes_draw_marker_f_stroke3_raw(const test_session_t *s, uint16_t fg_rgb565)
+static esp_err_t probes_draw_marker_f_stroke3_raw(const test_session_t *s, uint16_t fg_rgb565, int x_off, int y_off)
 {
-    const int base = (SAFE_SQUARE_DIM - PROBE_MARKER_BOX) / 2;
     esp_err_t e;
-    e = panel_hw_draw_rect_raw(s, base + 4, base + 4, base + 6, base + 35, fg_rgb565);
+    e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 6, y_off + 35, fg_rgb565);
     if (e != ESP_OK) {
         return e;
     }
-    e = panel_hw_draw_rect_raw(s, base + 4, base + 4, base + 35, base + 6, fg_rgb565);
+    e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 35, y_off + 6, fg_rgb565);
     if (e != ESP_OK) {
         return e;
     }
-    return panel_hw_draw_rect_raw(s, base + 4, base + 17, base + 22, base + 19, fg_rgb565);
+    return panel_hw_draw_rect_raw(s, x_off + 4, y_off + 17, x_off + 22, y_off + 19, fg_rgb565);
+}
+
+static esp_err_t probes_draw_marker_f_stroke3_logical_offset(int x_off, int y_off, uint16_t fg_rgb565)
+{
+    esp_err_t e;
+    e = panel_hw_link_spi_fill_rect_rgb565(x_off + 4, y_off + 4, PROBE_F_STROKE, 32, fg_rgb565);
+    if (e != ESP_OK) {
+        return e;
+    }
+    e = panel_hw_link_spi_fill_rect_rgb565(x_off + 4, y_off + 4, 32, PROBE_F_STROKE, fg_rgb565);
+    if (e != ESP_OK) {
+        return e;
+    }
+    return panel_hw_link_spi_fill_rect_rgb565(x_off + 4, y_off + 17, 19, PROBE_F_STROKE, fg_rgb565);
 }
 
 static esp_err_t probes_draw_marker_f_stroke3_logical(uint16_t fg_rgb565)
 {
-    esp_err_t e;
-    e = panel_hw_link_spi_fill_rect_rgb565(4, 4, PROBE_F_STROKE, 32, fg_rgb565);
-    if (e != ESP_OK) {
-        return e;
-    }
-    e = panel_hw_link_spi_fill_rect_rgb565(4, 4, 32, PROBE_F_STROKE, fg_rgb565);
-    if (e != ESP_OK) {
-        return e;
-    }
-    return panel_hw_link_spi_fill_rect_rgb565(4, 17, 19, PROBE_F_STROKE, fg_rgb565);
+    return probes_draw_marker_f_stroke3_logical_offset(0, 0, fg_rgb565);
 }
 
 /*
@@ -160,7 +164,7 @@ esp_err_t panel_hw_draw_silicon_probe(const test_session_t *s)
                                                m_offset + PROBE_MARKER_BOX - 1, 0xFFFFu),
                         TAG, "marker box");
 
-    return probes_draw_marker_f_stroke3_raw(s, 0x0000u);
+    return probes_draw_marker_f_stroke3_raw(s, 0x0000u, m_offset, m_offset);
 }
 
 /*
@@ -448,20 +452,44 @@ esp_err_t panel_hw_draw_g5_origin_ballpark_rgb565(const test_session_t *s)
     return panel_hw_set_gap(gc, gr);
 }
 
+/*
+ * G5 caliper / compass: logical (0,0) white tile + F after preset-max black wipe; session gap/orient/inv applied.
+ */
+esp_err_t panel_hw_draw_compass_verify(const test_session_t *s)
+{
+    ESP_RETURN_ON_FALSE(s && panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
+
+    panel_hw_apply_gap(s);
+    panel_hw_apply_orientation(s);
+    panel_hw_apply_invert(s);
+
+    esp_err_t e = panel_hw_native_clear_gram_preset_max_rgb565(s, 0x0000u);
+
+    panel_hw_apply_gap(s);
+    panel_hw_apply_orientation(s);
+    panel_hw_apply_invert(s);
+
+    if (e != ESP_OK) {
+        return e;
+    }
+
+    int W = (int)s->hor_res;
+    int H = (int)s->ver_res;
+    if (W <= 0 || H <= 0) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, W, H, 0x0000u), TAG, "logical clear");
+
+    const int box_size = PROBE_MARKER_BOX;
+    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, box_size, box_size, 0xFFFFu), TAG, "origin box");
+
+    return probes_draw_marker_f_stroke3_logical_offset(0, 0, 0x0000u);
+}
+
 esp_err_t panel_hw_draw_g5_origin_probe_rgb565(const test_session_t *s)
 {
-    ESP_RETURN_ON_FALSE(panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
-    ESP_RETURN_ON_FALSE(s, ESP_ERR_INVALID_ARG, TAG, "session");
-
-    ESP_RETURN_ON_ERROR(panel_hw_fill_rgb565(ui_color_bg(s)), TAG, "clr");
-    const uint16_t hi = ui_color_highlight(s);
-    uint16_t pw_u = 0, ph_u = 0;
-    panel_hw_spi_fb_size(&pw_u, &ph_u);
-    const int W = (int)pw_u;
-    const int H = (int)ph_u;
-    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, 2, H, hi), TAG, "v");
-    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, W, 2, hi), TAG, "h");
-    return ESP_OK;
+    return panel_hw_draw_compass_verify(s);
 }
 
 esp_err_t panel_hw_draw_g6_extents_ballpark_rgb565(const test_session_t *s)

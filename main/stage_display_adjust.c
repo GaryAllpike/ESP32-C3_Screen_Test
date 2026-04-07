@@ -159,8 +159,8 @@ bool display_stage_g5(test_session_t *s)
         printf("\n--- STEP 1B — Caliper ---\n");
         console_print_wrapped(
             "",
-            "Screen cleared to black. Bright crosshairs mark the logical origin (2 px thick). "
-            "Use W A S D to nudge column/row gap until they clip the top and left bezels. "
+            "Screen cleared to black. A white square at logical (0,0) with a black ‘F’ marks the origin. "
+            "Use W A S D to nudge column/row gap until the square clips the top and left bezels. "
             ", reverts to gap values from the start of this step. Enter or . locks and continues.\n");
 
         int16_t g1b_c = s->gap_col, g1b_r = s->gap_row;

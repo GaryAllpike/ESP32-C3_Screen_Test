@@ -52,6 +52,8 @@ esp_err_t panel_hw_draw_rect_raw(const test_session_t *s, int x0, int y0, int x1
                                  uint16_t rgb565);
 esp_err_t panel_hw_draw_g5_alignment_pattern(const test_session_t *s);
 esp_err_t panel_hw_draw_g5_origin_ballpark_rgb565(const test_session_t *s);
+/* SPI RGB565: logical origin marker (40×40 + F) after preset-max wipe; used by G5 caliper. */
+esp_err_t panel_hw_draw_compass_verify(const test_session_t *s);
 esp_err_t panel_hw_draw_g5_origin_probe_rgb565(const test_session_t *s);
 esp_err_t panel_hw_draw_g6_extents_ballpark_rgb565(const test_session_t *s);
 esp_err_t panel_hw_draw_g6_extents_probe_rgb565(const test_session_t *s, uint16_t log_w, uint16_t log_h);
