@@ -1,0 +1,6 @@
+Vendored from waveshare/esp_lcd_st7735 (registry) for ESP-IDF 6.x compatibility.
+
+Patch: esp_lcd_new_panel_st7735 uses esp_lcd_panel_dev_config_t.rgb_ele_order and
+LCD_RGB_ELEMENT_ORDER_* (replaces removed rgb_endian / LCD_RGB_ENDIAN_*).
+
+main/idf_component.yml references this copy via path: ../components/waveshare__esp_lcd_st7735

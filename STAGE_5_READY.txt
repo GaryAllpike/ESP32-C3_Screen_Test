@@ -1,0 +1,13 @@
+Phase 10.0 — validation suite integrated.
+
+Build: idf.py build completed successfully for app esp32-c3-screen-test (ESP32-C3).
+
+Delivered:
+- Probe marker RGB565 + mono bitmaps live only in main/panel_probes.c (k_probe_marker_turnip_*).
+- panel_hw_probe_draw_checkerboard / _gradient / _turnip (+ session gap, orientation, inv_en).
+- main/stage_5_validation.c — menu [1] checkerboard, [2] gradient, [3] rotating marker, [0] done.
+- stage_4_run_verification() delegates to stage_5_validation_run().
+- Legacy brand files removed: brand_turnip_assets.c, brand_turnip.h, panel_brand.c.
+- Public draw API renamed: panel_hw_draw_probe_marker_corner / panel_hw_draw_probe_marker_centred.
+
+Regenerate art: python tools/gen_brand_turnip.py → tools/probe_marker_regen_snippet.c, then paste arrays into panel_probes.c.

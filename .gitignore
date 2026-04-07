@@ -1,0 +1,14 @@
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+
+# Dependencies and IDE noise
+managed_components/
+dependencies.lock
+.vscode/
+.idea/
+
+# OS noise
+.DS_Store
+Thumbs.db

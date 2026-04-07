@@ -1,0 +1,7 @@
+## SPEC.md §5.5 — registry LCD drivers.
+## Waveshare ST7735: local fork only — see root components/waveshare__esp_lcd_st7735/ (not Component Manager).
+dependencies:
+  espressif/esp_lcd_ili9341: "2.0.2"
+  espressif/esp_lcd_gc9a01: "2.0.4"
+  atanisoft/esp_lcd_ili9488: "1.1.0"
+  tny-robotics/sh1106-esp-idf: "1.0.0"
