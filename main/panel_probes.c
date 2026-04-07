@@ -5,7 +5,6 @@
 #include "ui_colors.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
-#include "esp_lcd_panel_commands.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -29,18 +28,11 @@ static const char *TAG = "panel_probes";
 #define PROBE_F_STROKE 3
 #define SAFE_SQUARE_DIM 128
 
-static esp_err_t probes_draw_marker_f_stroke3_raw(const test_session_t *s, uint16_t fg_rgb565, int x_off, int y_off)
+static esp_err_t probes_draw_marker_f_stroke3_raw(const test_session_t *s, uint16_t fg, int x_off, int y_off)
 {
-    esp_err_t e;
-    e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 6, y_off + 35, fg_rgb565);
-    if (e != ESP_OK) {
-        return e;
-    }
-    e = panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 35, y_off + 6, fg_rgb565);
-    if (e != ESP_OK) {
-        return e;
-    }
-    return panel_hw_draw_rect_raw(s, x_off + 4, y_off + 17, x_off + 22, y_off + 19, fg_rgb565);
+    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 6, y_off + 35, fg), TAG, "f stem");
+    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, x_off + 4, y_off + 4, x_off + 35, y_off + 6, fg), TAG, "f top");
+    return panel_hw_draw_rect_raw(s, x_off + 4, y_off + 17, x_off + 22, y_off + 19, fg);
 }
 
 static esp_err_t probes_draw_marker_f_stroke3_logical_offset(int x_off, int y_off, uint16_t fg_rgb565)
@@ -60,38 +52,6 @@ static esp_err_t probes_draw_marker_f_stroke3_logical_offset(int x_off, int y_of
 static esp_err_t probes_draw_marker_f_stroke3_logical(uint16_t fg_rgb565)
 {
     return probes_draw_marker_f_stroke3_logical_offset(0, 0, fg_rgb565);
-}
-
-/*
- * Caliper / compass discovery: CASET/RASET to full preset GRAM; MADCTL 0x00 True North.
- */
-static esp_err_t probes_push_silicon_identity_hardware(void)
-{
-    esp_lcd_panel_io_handle_t io = panel_hw_link_get_io();
-    esp_lcd_panel_handle_t panel = panel_hw_link_get_panel();
-    if (!io || !panel) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    (void)panel_hw_set_gap(0, 0);
-    (void)esp_lcd_panel_swap_xy(panel, false);
-    panel_hw_set_mirror(false, false);
-
-    const uint8_t madctl_identity = 0x00;
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, &madctl_identity, 1), TAG, "MADCTL");
-
-    uint16_t mw_u = 0, mh_u = 0;
-    spi_presets_chip_gram_max(panel_hw_link_get_spi_chip(), &mw_u, &mh_u);
-    if (mw_u == 0 || mh_u == 0) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-    uint16_t xe = (uint16_t)(mw_u - 1u);
-    uint16_t ye = (uint16_t)(mh_u - 1u);
-
-    const uint8_t caset[4] = { 0x00, 0x00, (uint8_t)(xe >> 8), (uint8_t)(xe & 0xFF) };
-    const uint8_t raset[4] = { 0x00, 0x00, (uint8_t)(ye >> 8), (uint8_t)(ye & 0xFF) };
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_CASET, caset, sizeof(caset)), TAG, "CASET");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_RASET, raset, sizeof(raset)), TAG, "RASET");
-    return ESP_OK;
 }
 
 static esp_err_t spi_paint_discovery_gram_rgb565(const test_session_t *s, uint16_t rgb565)
@@ -149,22 +109,15 @@ esp_err_t panel_hw_draw_silicon_probe(const test_session_t *s)
 {
     ESP_RETURN_ON_FALSE(s && panel_hw_link_spi16_active(), ESP_ERR_INVALID_STATE, TAG, "spi16");
 
-    panel_hw_spi_clear_hardware_gap();
-
-    esp_err_t e = probes_push_silicon_identity_hardware();
-    if (e != ESP_OK) {
-        ESP_LOGW(TAG, "silicon identity: %s", esp_err_to_name(e));
-    }
-
     ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, 0, 0, SAFE_SQUARE_DIM - 1, SAFE_SQUARE_DIM - 1, 0x0000u), TAG,
-                        "safe square clear");
+                        "safe square");
 
-    const int m_offset = (SAFE_SQUARE_DIM - PROBE_MARKER_BOX) / 2;
-    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, m_offset, m_offset, m_offset + PROBE_MARKER_BOX - 1,
-                                               m_offset + PROBE_MARKER_BOX - 1, 0xFFFFu),
+    const int m_off = (SAFE_SQUARE_DIM - PROBE_MARKER_BOX) / 2;
+    ESP_RETURN_ON_ERROR(panel_hw_draw_rect_raw(s, m_off, m_off, m_off + PROBE_MARKER_BOX - 1,
+                                               m_off + PROBE_MARKER_BOX - 1, 0xFFFFu),
                         TAG, "marker box");
 
-    return probes_draw_marker_f_stroke3_raw(s, 0x0000u, m_offset, m_offset);
+    return probes_draw_marker_f_stroke3_raw(s, 0x0000u, m_off, m_off);
 }
 
 /*
@@ -453,7 +406,8 @@ esp_err_t panel_hw_draw_g5_origin_ballpark_rgb565(const test_session_t *s)
 }
 
 /*
- * G5 caliper / compass: logical (0,0) white tile + F after preset-max black wipe; session gap/orient/inv applied.
+ * G5 caliper / compass: black wipe then 40×40 + F at logical (0,0) — the corner after gap/orient/invert.
+ * Uses logical SPI fills (not panel_hw_draw_rect_raw), which forces native GRAM axes and would skip transforms.
  */
 esp_err_t panel_hw_draw_compass_verify(const test_session_t *s)
 {
@@ -473,16 +427,8 @@ esp_err_t panel_hw_draw_compass_verify(const test_session_t *s)
         return e;
     }
 
-    int W = (int)s->hor_res;
-    int H = (int)s->ver_res;
-    if (W <= 0 || H <= 0) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, W, H, 0x0000u), TAG, "logical clear");
-
-    const int box_size = PROBE_MARKER_BOX;
-    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, box_size, box_size, 0xFFFFu), TAG, "origin box");
+    ESP_RETURN_ON_ERROR(panel_hw_link_spi_fill_rect_rgb565(0, 0, PROBE_MARKER_BOX, PROBE_MARKER_BOX, 0xFFFFu), TAG,
+                        "logical origin box");
 
     return probes_draw_marker_f_stroke3_logical_offset(0, 0, 0x0000u);
 }

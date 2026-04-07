@@ -159,7 +159,7 @@ bool display_stage_g5(test_session_t *s)
         printf("\n--- STEP 1B — Caliper ---\n");
         console_print_wrapped(
             "",
-            "Screen cleared to black. A white square at logical (0,0) with a black ‘F’ marks the origin. "
+            "Screen cleared to black. The white square is now at the LOGICAL origin (0,0), with a black ‘F’ inside. "
             "Use W A S D to nudge column/row gap until the square clips the top and left bezels. "
             ", reverts to gap values from the start of this step. Enter or . locks and continues.\n");
 
